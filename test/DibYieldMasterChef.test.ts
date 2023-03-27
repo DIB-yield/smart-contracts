@@ -58,26 +58,100 @@ describe("MasterChef test", function () {
         expect(aliceInfo.amount).equal(parseUnits("960", 18))
     });
 
-    it("should take discounted fee on deposit from whitelist", async () => {
-        const {masterChef, alice, bob, usdt} = await loadFixture(prepareEnv);
+    describe("pre launch whitelist", () => {
+        it("should take discounted fee on deposit from whitelist", async () => {
+            const {masterChef, alice, bob, usdt} = await loadFixture(prepareEnv);
+            const merkleTree = StandardMerkleTree.of([[alice.address], [bob.address]], ['address'])
+            await masterChef.setWhitelistMerkleRoot(merkleTree.root);
+            const proof = merkleTree.getProof([alice.address]);
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            await masterChef.connect(alice).deposit(0, amount, 0, proof);
+            const aliceInfo = await masterChef.userInfo(0, alice.address);
+            expect(aliceInfo.amount).equal(parseUnits("980", 18));
+        });
 
-        const merkleTree = StandardMerkleTree.of([[alice.address], [bob.address]], ['address'])
+        it('should not make discount after project launch', async () => {
+            const {masterChef, alice, bob, usdt} = await loadFixture(prepareEnv);
+            const merkleTree = StandardMerkleTree.of([[alice.address], [bob.address]], ['address'])
+            await masterChef.setWhitelistMerkleRoot(merkleTree.root);
+            const proof = merkleTree.getProof([alice.address]);
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            const launchTime = await masterChef.startTime();
+            await time.increase(86400);
+            await masterChef.connect(alice).deposit(0, amount, 0, proof);
+            const aliceInfo = await masterChef.userInfo(0, alice.address);
+            expect(aliceInfo.amount).equal(parseUnits("960", 18));
+        })
+    })
 
-        await masterChef.setWhitelistMerkleRoot(merkleTree.root);
+    describe("lockups", () => {
 
-        const proof = merkleTree.getProof([alice.address]);
+        it("should fail if wrong lockup period is passed", async () =>  {
+            const oneDay = 86400;
+            const month = oneDay * 30;
 
-        const valid = merkleTree.verify([alice.address], proof)
-        console.log({valid})
+            const {masterChef, alice, bob, usdt} = await loadFixture(prepareEnv);
 
-        const amount = ethers.utils.parseUnits("1000", 18);
-        await usdt.connect(alice).approve(masterChef.address, amount);
-        console.log({merkleTree});
-        console.log({proof});
-        await masterChef.connect(alice).deposit(0, amount, 0, proof);
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            await expect(masterChef.connect(alice).deposit(0, amount, month + 1, [])).to
+                .be.revertedWith("wrong lock period");
+        });
 
-        const aliceInfo = await masterChef.userInfo(0, alice.address);
-        expect(aliceInfo.amount).equal(parseUnits("980", 18));
+        it("should give discount with lock period", async () =>  {
+            const oneDay = 86400;
+            const month = oneDay * 30;
+
+            const {masterChef, alice, usdt} = await loadFixture(prepareEnv);
+
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            await masterChef.connect(alice).deposit(0, amount, month, []);
+
+            const aliceInfo = await masterChef.userInfo(0, alice.address);
+            expect(aliceInfo.amount).equal(parseUnits("966", 18));
+        });
+         
+        it("sets correct unlock time on first deposit", async () => {
+            const oneDay = 86400;
+            const month = oneDay * 30;
+
+            const {masterChef, alice, usdt} = await loadFixture(prepareEnv);
+
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            const tx = await masterChef.connect(alice).deposit(0, amount, month, []);
+            const waitedTx = await tx.wait()
+            const blockNumber = waitedTx.blockNumber;
+            const miningTime = (await ethers.provider.getBlock(blockNumber)).timestamp;
+
+            const aliceInfo = await masterChef.userInfo(0, alice.address);
+            expect(aliceInfo.unlockTime).equal(miningTime + month);
+        })
+
+        // it("should correctly recalculate unlock time", async () => {
+        //     const oneDay = 86400;
+        //     const month = oneDay * 30;
+
+        //     const {masterChef, alice, usdt} = await loadFixture(prepareEnv);
+
+        //     const amount = ethers.utils.parseUnits("1000", 18);
+        //     await usdt.connect(alice).approve(masterChef.address, amount);
+        //     const tx = await masterChef.connect(alice).deposit(0, amount, month, []);
+        //     const waitedTx = await tx.wait()
+        //     const blockNumber = waitedTx.blockNumber;
+        //     const miningTime = (await ethers.provider.getBlock(blockNumber)).timestamp;
+
+        //     const aliceInfo = await masterChef.userInfo(0, alice.address);
+        //     await time.increaseTo(aliceInfo.unlockTime - oneDay);
+
+        //     const unlockTime = await masterChef.calculateNewUnlockTimeForUser(alice.address, 0, 45 * oneDay, amount);
+        //     console.log({unlockTime})
+        //     expect(unlockTime).equal(23 * oneDay, "wrong unlock time");
+        // })
+
     });
 
 });
