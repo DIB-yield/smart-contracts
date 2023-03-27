@@ -15,7 +15,6 @@ contract DibYieldToken is ERC20, Ownable, ERC20Permit, ERC20Votes {
     }
 
     function mint(address to, uint256 amount) external onlyOwner {
-        require(ERC20.totalSupply() + amount <= cap, "cap exceeded");
         _mint(to, amount);
     }
 

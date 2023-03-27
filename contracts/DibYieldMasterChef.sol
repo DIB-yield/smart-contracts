@@ -205,12 +205,6 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 totalDib = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div(totalAllocPoint);
         if (totalDib == 0) return;
 
-        if(dib.totalSupply() + totalDib > dib.cap()) {
-            totalDib = dib.cap() - dib.totalSupply();
-            if(totalDib == 0 && dibPerSecond != 0)
-                return _updateEmissionRate(0);
-        }
-
         uint256 forDevs = totalDib.mul(devFee).div(1000);
         uint256 dibReward = totalDib.sub(forDevs);
         dib.mint(devaddr, forDevs);
