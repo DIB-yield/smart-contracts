@@ -141,10 +141,6 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     mapping(IERC20 => bool) public poolExistence;
-    modifier nonDuplicated(IERC20 _stakeToken) {
-        require(poolExistence[_stakeToken] == false, "nonDuplicated: duplicated");
-        _;
-    }
 
     // Add a new token to the pool. Can only be called by the owner.
     function add(
@@ -152,7 +148,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         IERC20 _stakeToken,
         uint16 _depositFeeBP,
         bool _withUpdate
-    ) public onlyOwner nonDuplicated(_stakeToken) {
+    ) public onlyOwner {
         require(_depositFeeBP <= 1000, "add: invalid deposit fee basis points");
         if (_withUpdate) {
             massUpdatePools();
@@ -210,9 +206,11 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 stakeSupply = pool.totalStaked;
         if (block.timestamp > pool.lastRewardTime && stakeSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardTime, block.timestamp);
-            uint256 dibReward = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div( //todo fix calculation
+            uint256 totalDib = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div(
                 totalAllocPoint
             );
+            uint256 forDevs = totalDib.mul(devFee).div(1000);
+            uint256 dibReward = totalDib.sub(forDevs);
             accDibPerShare = accDibPerShare.add(dibReward.mul(1e12).div(stakeSupply));
         }
         return user.amount.mul(accDibPerShare).div(1e12).sub(user.rewardDebt);
@@ -321,7 +319,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public nonReentrant {
+    function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 amount = user.amount;
