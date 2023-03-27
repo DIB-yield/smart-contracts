@@ -139,7 +139,7 @@ module.exports = {
         clear: true,
         flat: true,
         spacing: 2,
-        except: []
+        except: [],
     },
     spdxLicenseIdentifier: {
         overwrite: true,

@@ -22,6 +22,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "./DibYieldToken.sol";
 
 // MasterChef is the master of DIB token. He can make DIB and he is a fair guy.
@@ -35,10 +36,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    bytes32 public whitelistMerkleRoot;
+
     // Info of each user.
     struct UserInfo {
-        uint256 amount;         // How many tokens the user has provided.
-        uint256 rewardDebt;     // Reward debt. See explanation below.
+        uint256 amount; // How many tokens the user has provided.
+        uint256 rewardDebt; // Reward debt. See explanation below.
         //
         // We do some fancy math here. Basically, any point in time, the amount of DIBs
         // entitled to a user but is pending to be distributed is:
@@ -54,12 +57,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
 
     // Info of each pool.
     struct PoolInfo {
-        IERC20 stakeToken;        // Address of stake token contract.
-        uint256 allocPoint;       // How many allocation points assigned to this pool. DIBs to distribute per block.
-        uint256 totalStaked;      // Amount of tokens staked in given pool
-        uint256 lastRewardTime;   // Last timestamp DIBs distribution occurs.
-        uint256 accDibPerShare;  // Accumulated DIBs per share, times 1e12. See below.
-        uint16 depositFeeBP;      // Deposit fee in basis points
+        IERC20 stakeToken; // Address of stake token contract.
+        uint256 allocPoint; // How many allocation points assigned to this pool. DIBs to distribute per block.
+        uint256 totalStaked; // Amount of tokens staked in given pool
+        uint256 lastRewardTime; // Last timestamp DIBs distribution occurs.
+        uint256 accDibPerShare; // Accumulated DIBs per share, times 1e12. See below.
+        uint16 depositFeeBP; // Deposit fee in basis points
     }
 
     // The DIB TOKEN
@@ -96,9 +99,21 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     event UpdateEmissionRate(address indexed user, uint256 dibPerSecond);
     event UpdateDevFee(address indexed user, uint256 newFee);
 
-    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed stakeToken, uint16 depositFee);
-    event LogSetPool(uint256 indexed pid, uint256 allocPoint,  uint16 depositFee);
-    event LogUpdatePool(uint256 indexed pid, uint256 lastRewardBlock, uint256 stakeSupply, uint256 accDibPerShare);
+    event LogPoolAddition(
+        uint256 indexed pid,
+        uint256 allocPoint,
+        IERC20 indexed stakeToken,
+        uint16 depositFee
+    );
+    event LogSetPool(uint256 indexed pid, uint256 allocPoint, uint16 depositFee);
+    event LogUpdatePool(
+        uint256 indexed pid,
+        uint256 lastRewardBlock,
+        uint256 stakeSupply,
+        uint256 accDibPerShare
+    );
+
+    event WhitelistMerkleRootSet(bytes32 newMerkleRoot);
 
     constructor(
         DibYieldToken _dib,
@@ -125,7 +140,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // Add a new token to the pool. Can only be called by the owner.
-    function add(uint256 _allocPoint, IERC20 _stakeToken, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner nonDuplicated(_stakeToken) {
+    function add(
+        uint256 _allocPoint,
+        IERC20 _stakeToken,
+        uint16 _depositFeeBP,
+        bool _withUpdate
+    ) public onlyOwner nonDuplicated(_stakeToken) {
         require(_depositFeeBP <= 1000, "add: invalid deposit fee basis points");
         if (_withUpdate) {
             massUpdatePools();
@@ -135,20 +155,27 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolExistence[_stakeToken] = true;
 
-        poolInfo.push(PoolInfo({
-            stakeToken : _stakeToken,
-            allocPoint : _allocPoint,
-            lastRewardTime : lastRewardTime,
-            accDibPerShare : 0,
-            totalStaked : 0,
-            depositFeeBP : _depositFeeBP
-        }));
+        poolInfo.push(
+            PoolInfo({
+                stakeToken: _stakeToken,
+                allocPoint: _allocPoint,
+                lastRewardTime: lastRewardTime,
+                accDibPerShare: 0,
+                totalStaked: 0,
+                depositFeeBP: _depositFeeBP
+            })
+        );
 
         emit LogPoolAddition(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP);
     }
 
     // Update the given pool's DIB allocation point and deposit fee. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
+    function set(
+        uint256 _pid,
+        uint256 _allocPoint,
+        uint16 _depositFeeBP,
+        bool _withUpdate
+    ) public onlyOwner {
         require(_depositFeeBP <= 1000, "set: invalid deposit fee basis points");
         if (_withUpdate) {
             massUpdatePools();
@@ -176,7 +203,9 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 stakeSupply = pool.totalStaked;
         if (block.timestamp > pool.lastRewardTime && stakeSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardTime, block.timestamp);
-            uint256 dibReward = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div(totalAllocPoint);
+            uint256 dibReward = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div(
+                totalAllocPoint
+            );
             accDibPerShare = accDibPerShare.add(dibReward.mul(1e12).div(stakeSupply));
         }
         return user.amount.mul(accDibPerShare).div(1e12).sub(user.rewardDebt);
@@ -215,7 +244,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit tokens to MasterChef for DIB allocation.
-    function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
+    function deposit(uint256 _pid, uint256 _amount, bytes32[] calldata _whitelistProof) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 finalDepositAmount;
@@ -235,6 +264,10 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
 
             if (pool.depositFeeBP > 0) {
                 uint256 depositFee = finalDepositAmount.mul(pool.depositFeeBP).div(10000);
+                if (_whitelistProof.length != 0 && startTime < block.timestamp) {
+                    require(MerkleProof.verify(_whitelistProof, whitelistMerkleRoot, keccak256(abi.encode(msg.sender))), "wrong proof");
+                    depositFee = depositFee / 2;
+                }
                 pool.stakeToken.safeTransfer(feeAddress, depositFee);
                 finalDepositAmount = finalDepositAmount.sub(depositFee);
             }
@@ -259,7 +292,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
             user.amount = user.amount.sub(_amount);
             pool.totalStaked = pool.totalStaked.sub(_amount);
             pool.stakeToken.safeTransfer(address(msg.sender), _amount);
-        }   
+        }
         user.rewardDebt = user.amount.mul(pool.accDibPerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
     }
@@ -321,11 +354,16 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     function updateEmissionRate(uint256 _dibPerSecond) public onlyOwner {
         _updateEmissionRate(_dibPerSecond);
         massUpdatePools();
-    }    
-    
+    }
+
     function updateDevFee(uint256 _newDevFee) public onlyOwner {
         require(_newDevFee <= MAX_DEV_FEE, "Updated fee is more than maximum rate");
         devFee = _newDevFee;
         emit UpdateDevFee(msg.sender, _newDevFee);
+    }
+
+    function setWhitelistMerkleRoot(bytes32 _root) external onlyOwner {
+        whitelistMerkleRoot = _root;
+        emit WhitelistMerkleRootSet(_root);
     }
 }
