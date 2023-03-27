@@ -42,6 +42,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     struct UserInfo {
         uint256 amount; // How many tokens the user has provided.
         uint256 rewardDebt; // Reward debt. See explanation below.
+        uint256 unlockTime; // The withdraw unlock time
         //
         // We do some fancy math here. Basically, any point in time, the amount of DIBs
         // entitled to a user but is pending to be distributed is:
@@ -91,6 +92,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     // The block number when DIB mining starts.
     uint256 public startTime;
 
+    mapping(uint256=>uint256) lockPeriodDiscounts;
+
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -98,6 +101,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     event SetDevAddress(address indexed user, address indexed newAddress);
     event UpdateEmissionRate(address indexed user, uint256 dibPerSecond);
     event UpdateDevFee(address indexed user, uint256 newFee);
+    event LockPeriodDiscountSet(uint256 periodInSeconds, uint256 discount);
 
     event LogPoolAddition(
         uint256 indexed pid,
@@ -127,6 +131,9 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         feeAddress = _feeAddress;
         dibPerSecond = _dibPerSecond;
         startTime = _startTime;
+        lockPeriodDiscounts[30 days] = 150;
+        lockPeriodDiscounts[60 days] = 300;
+        lockPeriodDiscounts[90 days] = 450;
     }
 
     function poolLength() external view returns (uint256) {
@@ -203,12 +210,22 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 stakeSupply = pool.totalStaked;
         if (block.timestamp > pool.lastRewardTime && stakeSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardTime, block.timestamp);
-            uint256 dibReward = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div(
+            uint256 dibReward = multiplier.mul(dibPerSecond).mul(pool.allocPoint).div( //todo fix calculation
                 totalAllocPoint
             );
             accDibPerShare = accDibPerShare.add(dibReward.mul(1e12).div(stakeSupply));
         }
         return user.amount.mul(accDibPerShare).div(1e12).sub(user.rewardDebt);
+    }
+
+    function calculateNewUnlockTime(address _user, uint256 _pid, uint256 _lockTime, uint256 _amount) public view returns (uint256) {
+        uint256 userBalance = userInfo[_pid][_user].amount;
+        uint256 unlockTime = userInfo[_pid][_user].unlockTime;
+        uint256 timeToUnlock = 0;
+        if(unlockTime > block.timestamp) {
+            timeToUnlock = block.timestamp - unlockTime;
+        } 
+        return (userBalance * timeToUnlock + _lockTime * _amount) / (userBalance + _amount);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -244,7 +261,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit tokens to MasterChef for DIB allocation.
-    function deposit(uint256 _pid, uint256 _amount, bytes32[] calldata _whitelistProof) public nonReentrant {
+    function deposit(uint256 _pid, uint256 _amount, uint256 _lockPeriod, bytes32[] calldata _whitelistProof) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 finalDepositAmount;
@@ -266,7 +283,13 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
                 uint256 depositFee = finalDepositAmount.mul(pool.depositFeeBP).div(10000);
                 if (_whitelistProof.length != 0 && startTime < block.timestamp) {
                     require(MerkleProof.verify(_whitelistProof, whitelistMerkleRoot, keccak256(abi.encode(msg.sender))), "wrong proof");
-                    depositFee = depositFee / 2;
+                    depositFee = depositFee.div(2);
+                }
+                if(_lockPeriod > 0) {
+                    uint256 lockDiscount = lockPeriodDiscounts[_lockPeriod];
+                    require(lockDiscount > 0, "wrong lock period");
+                    depositFee = depositFee * (1000 - lockDiscount) / 1000;
+                    userInfo[_pid][msg.sender].unlockTime = calculateNewUnlockTime(msg.sender, _pid, _lockPeriod, _amount);
                 }
                 pool.stakeToken.safeTransfer(feeAddress, depositFee);
                 finalDepositAmount = finalDepositAmount.sub(depositFee);
@@ -339,7 +362,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit SetDevAddress(msg.sender, _devaddr);
     }
 
-    function setFeeAddress(address _feeAddress) public {
+    function setFeeAddress(address _feeAddress) external {
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         feeAddress = _feeAddress;
         emit SetFeeAddress(msg.sender, _feeAddress);
@@ -351,12 +374,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit UpdateEmissionRate(msg.sender, _dibPerSecond);
     }
 
-    function updateEmissionRate(uint256 _dibPerSecond) public onlyOwner {
+    function updateEmissionRate(uint256 _dibPerSecond) external onlyOwner {
         _updateEmissionRate(_dibPerSecond);
         massUpdatePools();
     }
 
-    function updateDevFee(uint256 _newDevFee) public onlyOwner {
+    function updateDevFee(uint256 _newDevFee) external onlyOwner {
         require(_newDevFee <= MAX_DEV_FEE, "Updated fee is more than maximum rate");
         devFee = _newDevFee;
         emit UpdateDevFee(msg.sender, _newDevFee);
@@ -365,5 +388,11 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     function setWhitelistMerkleRoot(bytes32 _root) external onlyOwner {
         whitelistMerkleRoot = _root;
         emit WhitelistMerkleRootSet(_root);
+    }
+
+    function setLockDiscount(uint256 _periodInSeconds, uint256 _discount) external onlyOwner {
+        require(_discount <= 1000, "invalid value");
+        lockPeriodDiscounts[_periodInSeconds] = _discount;
+        emit LockPeriodDiscountSet(_periodInSeconds, _discount);
     }
 }
