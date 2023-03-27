@@ -104,14 +104,14 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     event UpdateDevFee(address indexed user, uint256 newFee);
     event LockPeriodDiscountSet(uint256 periodInSeconds, uint256 discount);
 
-    event LogPoolAddition(
+    event PoolAdded(
         uint256 indexed pid,
         uint256 allocPoint,
         IERC20 indexed stakeToken,
         uint16 depositFee
     );
-    event LogSetPool(uint256 indexed pid, uint256 allocPoint, uint16 depositFee);
-    event LogUpdatePool(
+    event PoolSet(uint256 indexed pid, uint256 allocPoint, uint16 depositFee);
+    event PoolUpdated(
         uint256 indexed pid,
         uint256 lastRewardBlock,
         uint256 stakeSupply,
@@ -176,7 +176,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
             })
         );
 
-        emit LogPoolAddition(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP);
+        emit PoolAdded(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP);
     }
 
     // Update the given pool's DIB allocation point and deposit fee. Can only be called by the owner.
@@ -197,7 +197,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
 
-        emit LogSetPool(_pid, _allocPoint, _depositFeeBP);
+        emit PoolSet(_pid, _allocPoint, _depositFeeBP);
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -266,7 +266,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         dib.mint(address(this), dibReward);
         pool.accDibPerShare = pool.accDibPerShare.add(dibReward.mul(1e18).div(stakeSupply));
         pool.lastRewardTime = block.timestamp;
-        emit LogUpdatePool(_pid, pool.lastRewardTime, stakeSupply, pool.accDibPerShare);
+        emit PoolUpdated(_pid, pool.lastRewardTime, stakeSupply, pool.accDibPerShare);
     }
 
     // Deposit tokens to MasterChef for DIB allocation.
