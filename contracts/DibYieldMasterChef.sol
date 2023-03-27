@@ -279,8 +279,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
 
             if (pool.depositFeeBP > 0) {
                 uint256 depositFee = finalDepositAmount.mul(pool.depositFeeBP).div(10000);
-                if (_whitelistProof.length != 0 && startTime < block.timestamp) {
-                    require(MerkleProof.verify(_whitelistProof, whitelistMerkleRoot, keccak256(abi.encode(msg.sender))), "wrong proof");
+                if (_whitelistProof.length != 0 && whitelistMerkleRoot != bytes32(0) && block.timestamp < startTime ) {
+                    require(MerkleProof.verify(_whitelistProof, whitelistMerkleRoot, keccak256(bytes.concat(keccak256(abi.encode(msg.sender))))), "wrong proof");
                     depositFee = depositFee.div(2);
                 }
                 if(_lockPeriod > 0) {
