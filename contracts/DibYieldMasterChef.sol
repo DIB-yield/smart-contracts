@@ -235,14 +235,14 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         if (unlockTime > block.timestamp) {
             timeToUnlock = unlockTime - block.timestamp;
         }
-        return calculateUnlockTime(userBalance, timeToUnlock, _lockTime, _amount);
+        return calculateUnlockTime(userBalance, timeToUnlock, _amount, _lockTime);
     }
 
     function calculateUnlockTime(
         uint256 _oldAmount,
         uint256 _lockTimeLeft,
-        uint256 _lockTime,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _lockTime
     ) public pure returns (uint64) {
         return uint64((_oldAmount * _lockTimeLeft + _lockTime * _amount) / (_oldAmount + _amount));
     }

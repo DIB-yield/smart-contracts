@@ -37,6 +37,8 @@ describe("MasterChef test", function () {
             currentTime + 60
         );
 
+        await dibToken.transferOwnership(masterChef.address);
+
         await masterChef.add(1000, usdt.address, 400, false);
         await masterChef.add(500, weth.address, 400, false);
 
@@ -135,25 +137,63 @@ describe("MasterChef test", function () {
             expect(aliceInfo.unlockTime).equal(miningTime + month);
         });
 
-        // it("should correctly recalculate unlock time", async () => {
-        //     const oneDay = 86400;
-        //     const month = oneDay * 30;
+        it("should not allow to withdraw before unlock time", async () => {
+            const oneDay = 86400;
+            const month = oneDay * 30;
 
-        //     const {masterChef, alice, usdt} = await loadFixture(prepareEnv);
+            const { masterChef, alice, usdt } = await loadFixture(prepareEnv);
 
-        //     const amount = ethers.utils.parseUnits("1000", 18);
-        //     await usdt.connect(alice).approve(masterChef.address, amount);
-        //     const tx = await masterChef.connect(alice).deposit(0, amount, month, []);
-        //     const waitedTx = await tx.wait()
-        //     const blockNumber = waitedTx.blockNumber;
-        //     const miningTime = (await ethers.provider.getBlock(blockNumber)).timestamp;
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            await masterChef.connect(alice).deposit(0, amount, month, []);
 
-        //     const aliceInfo = await masterChef.userInfo(0, alice.address);
-        //     await time.increaseTo(aliceInfo.unlockTime - oneDay);
+            await expect(masterChef.connect(alice).withdraw(0, parseUnits("900", 18))).to.be.revertedWith("not yet");
 
-        //     const unlockTime = await masterChef.calculateNewUnlockTimeForUser(alice.address, 0, 45 * oneDay, amount);
-        //     console.log({unlockTime})
-        //     expect(unlockTime).equal(23 * oneDay, "wrong unlock time");
-        // })
+            const aliceInfo = await masterChef.userInfo(0, alice.address);
+            await time.increaseTo(aliceInfo.unlockTime);
+            await masterChef.connect(alice).withdraw(0, parseUnits("900", 18));
+            
+        }) 
+
+        it("should correctly recalculate unlock time", async () => {
+            const oneDay = 86400;
+            const month = oneDay * 30;
+
+            const {masterChef} = await loadFixture(prepareEnv);
+            let oldAmount = parseUnits("100", 18);
+            let lockTimeLeft = oneDay;
+            let lockTime = month
+            let amount = parseUnits("100", 18)
+            let newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal((oneDay + month) / 2);
+
+            oldAmount = parseUnits("100", 18);
+            lockTimeLeft = 0;
+            lockTime = month
+            amount = parseUnits("100", 18)
+            newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal((month) / 2);
+
+            oldAmount = parseUnits("100", 18);
+            lockTimeLeft = month;
+            lockTime = 0;
+            amount = parseUnits("100", 18);
+            newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal((month) / 2);
+
+            oldAmount = parseUnits("100", 18);
+            lockTimeLeft = month;
+            lockTime = month;
+            amount = 0;
+            newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal(month);
+
+            oldAmount = 0;
+            lockTimeLeft = 30 * month;
+            lockTime = month;
+            amount = parseUnits("100", 18);
+            newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal(month);
+        })
     });
 });
