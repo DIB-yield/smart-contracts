@@ -1,6 +1,6 @@
 import { ethers, network, run } from "hardhat";
 
-export async function deployAndVerify(contractName: string, args: any[]) {
+export async function deployAndVerify(contractName: string, args: any[]): Contract {
     const Contract = await ethers.getContractFactory(contractName);
 
     console.log("Deploying Contact...");
@@ -9,6 +9,9 @@ export async function deployAndVerify(contractName: string, args: any[]) {
 
     await contract.deployed();
     console.log("Done");
+
+    console.log("waiting for 5 confirmations before verification")
+    await contract.deployTransaction.wait(2)
 
     const networkName = network.name;
     console.log("Network:", networkName);
@@ -26,4 +29,5 @@ export async function deployAndVerify(contractName: string, args: any[]) {
             console.log("Error message", error.message);
         }
     }
+    return contract;
 }

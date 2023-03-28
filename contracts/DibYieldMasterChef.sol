@@ -379,15 +379,15 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit SetFeeAddress(msg.sender, _feeAddress);
     }
 
+    function updateEmissionRate(uint256 _dibPerSecond) external onlyOwner {
+        massUpdatePools();
+        _updateEmissionRate(_dibPerSecond);
+    }
+
     function _updateEmissionRate(uint256 _dibPerSecond) internal {
         require(_dibPerSecond <= MAX_EMISSION_RATE, "Updated emissions are more than maximum rate");
         dibPerSecond = _dibPerSecond;
         emit UpdateEmissionRate(msg.sender, _dibPerSecond);
-    }
-
-    function updateEmissionRate(uint256 _dibPerSecond) external onlyOwner {
-        massUpdatePools();
-        _updateEmissionRate(_dibPerSecond);
     }
 
     function updateDevFee(uint256 _newDevFee) external onlyOwner {

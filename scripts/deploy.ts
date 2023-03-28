@@ -7,7 +7,17 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
 
-    await utils.deployAndVerify("Token", [config.initialSupply]);
+    const token = await utils.deployAndVerify("DibYieldToken", []);
+    const masterChef = await utils.deployAndVerify("DibYieldMasterChef", 
+            [
+                token.address, 
+                deployer.address,
+                deployer.address,
+                ethers.utils.parseUnits("4", 18),
+                1679996317
+            ])
+    await token.transferOwnership(masterChef.address);
+    console.log('done')
 }
 
 main()

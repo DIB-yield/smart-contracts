@@ -45,6 +45,10 @@ module.exports = {
             url: "https://goerli.infura.io/v3/" + config.infuraIdProject,
             accounts: config.testnetAccounts,
         },
+        sepolia: {
+            url: "https://rpc.sepolia.org",
+            accounts: config.testnetAccounts,
+        },
         bscMainnet: {
             url: "https://bsc-dataseed3.binance.org",
             accounts: config.mainnetAccounts,
@@ -70,6 +74,7 @@ module.exports = {
             kovan: config.apiKeyEtherscan,
             rinkeby: config.apiKeyEtherscan,
             goerli: config.apiKeyEtherscan,
+            sepolia: config.apiKeyEtherscan,
 
             bsc: config.apiKeyBscScan,
             bscTestnet: config.apiKeyBscScan,
