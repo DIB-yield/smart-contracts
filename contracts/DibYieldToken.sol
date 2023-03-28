@@ -23,7 +23,6 @@ __/\\\\\\\\\\\\_____/\\\\\\\\\\\__/\\\\\\\\\\\\\______________/\\\________/\\\__
 */
 
 contract DibYieldToken is ERC20, Ownable, ERC20Permit, ERC20Votes {
-
     constructor() ERC20("DibYield", "DIB") ERC20Permit("DibYield") {}
 
     function mint(address to, uint256 amount) external onlyOwner {

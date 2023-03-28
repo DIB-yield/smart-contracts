@@ -10,8 +10,8 @@ export async function deployAndVerify(contractName: string, args: any[]): Contra
     await contract.deployed();
     console.log("Done");
 
-    console.log("waiting for 5 confirmations before verification")
-    await contract.deployTransaction.wait(2)
+    console.log("waiting for 5 confirmations before verification");
+    await contract.deployTransaction.wait(2);
 
     const networkName = network.name;
     console.log("Network:", networkName);

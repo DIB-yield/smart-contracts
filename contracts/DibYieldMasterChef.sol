@@ -68,7 +68,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // The DIB TOKEN
-    DibYieldToken immutable public dib;
+    DibYieldToken public immutable dib;
     // Dev address.
     address public devaddr;
     // Dev fee percentage.
@@ -93,7 +93,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     // The block number when DIB mining starts.
     uint256 public startTime;
 
-    mapping(uint256=>uint256) lockPeriodDiscounts;
+    mapping(uint256 => uint256) lockPeriodDiscounts;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -223,17 +223,27 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         return user.amount.mul(accDibPerShare).div(1e18).sub(user.rewardDebt);
     }
 
-    function calculateNewUnlockTimeForUser(address _user, uint256 _pid, uint256 _lockTime, uint256 _amount) public view returns (uint64) {
+    function calculateNewUnlockTimeForUser(
+        address _user,
+        uint256 _pid,
+        uint256 _lockTime,
+        uint256 _amount
+    ) public view returns (uint64) {
         uint256 userBalance = userInfo[_pid][_user].amount;
         uint256 unlockTime = userInfo[_pid][_user].unlockTime;
         uint256 timeToUnlock = 0;
-        if(unlockTime > block.timestamp) {
+        if (unlockTime > block.timestamp) {
             timeToUnlock = unlockTime - block.timestamp;
-        } 
+        }
         return calculateUnlockTime(userBalance, timeToUnlock, _lockTime, _amount);
     }
 
-    function calculateUnlockTime(uint256 _oldAmount, uint256 _lockTimeLeft, uint256 _lockTime, uint256 _amount) public pure returns (uint64) {
+    function calculateUnlockTime(
+        uint256 _oldAmount,
+        uint256 _lockTimeLeft,
+        uint256 _lockTime,
+        uint256 _amount
+    ) public pure returns (uint64) {
         return uint64((_oldAmount * _lockTimeLeft + _lockTime * _amount) / (_oldAmount + _amount));
     }
 
@@ -270,7 +280,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit tokens to MasterChef for DIB allocation.
-    function deposit(uint256 _pid, uint256 _amount, uint64 _lockPeriod, bytes32[] calldata _whitelistProof) external nonReentrant {
+    function deposit(
+        uint256 _pid,
+        uint256 _amount,
+        uint64 _lockPeriod,
+        bytes32[] calldata _whitelistProof
+    ) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 finalDepositAmount;
@@ -290,15 +305,29 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
 
             if (pool.depositFeeBP > 0) {
                 uint256 depositFee = finalDepositAmount.mul(pool.depositFeeBP).div(10000);
-                if (_whitelistProof.length != 0 && whitelistMerkleRoot != bytes32(0) && block.timestamp < startTime ) {
-                    require(MerkleProof.verify(_whitelistProof, whitelistMerkleRoot, keccak256(bytes.concat(keccak256(abi.encode(msg.sender))))), "wrong proof");
+                if (
+                    _whitelistProof.length != 0 &&
+                    whitelistMerkleRoot != bytes32(0) &&
+                    block.timestamp < startTime
+                ) {
+                    require(
+                        MerkleProof.verify(
+                            _whitelistProof,
+                            whitelistMerkleRoot,
+                            keccak256(bytes.concat(keccak256(abi.encode(msg.sender))))
+                        ),
+                        "wrong proof"
+                    );
                     depositFee = depositFee.div(2);
                 }
-                if(_lockPeriod > 0) {
+                if (_lockPeriod > 0) {
                     uint256 lockDiscount = lockPeriodDiscounts[_lockPeriod];
                     require(lockDiscount > 0, "wrong lock period");
-                    depositFee = depositFee * (1000 - lockDiscount) / 1000;
-                    userInfo[_pid][msg.sender].unlockTime = uint64(block.timestamp + calculateNewUnlockTimeForUser(msg.sender, _pid, _lockPeriod, _amount));
+                    depositFee = (depositFee * (1000 - lockDiscount)) / 1000;
+                    userInfo[_pid][msg.sender].unlockTime = uint64(
+                        block.timestamp +
+                            calculateNewUnlockTimeForUser(msg.sender, _pid, _lockPeriod, _amount)
+                    );
                 }
                 pool.stakeToken.safeTransfer(feeAddress, depositFee);
                 finalDepositAmount = finalDepositAmount.sub(depositFee);
