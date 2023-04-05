@@ -65,6 +65,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 lastRewardTime; // Last timestamp DIBs distribution occurs.
         uint256 accDibPerShare; // Accumulated DIBs per share, times 1e18. See below.
         uint16 depositFeeBP; // Deposit fee in basis points
+        bool withDepositLockDiscount; //Allows to lock funds for deposit discound
     }
 
     // The DIB TOKEN
@@ -108,9 +109,10 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 indexed pid,
         uint256 allocPoint,
         IERC20 indexed stakeToken,
-        uint16 depositFee
+        uint16 depositFee,
+        bool withDepositLockDiscount
     );
-    event PoolSet(uint256 indexed pid, uint256 allocPoint, uint16 depositFee);
+    event PoolSet(uint256 indexed pid, uint256 allocPoint, uint16 depositFee, bool withDepositLockDiscount);
     event PoolUpdated(
         uint256 indexed pid,
         uint256 lastRewardBlock,
@@ -152,7 +154,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 _allocPoint,
         IERC20 _stakeToken,
         uint16 _depositFeeBP,
-        bool _withUpdate
+        bool _withUpdate,
+        bool withDepositLockDiscount
     ) external onlyOwner {
         require(_depositFeeBP <= 1000, "add: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -172,11 +175,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
                 lastRewardTime: lastRewardTime,
                 accDibPerShare: 0,
                 totalStaked: 0,
-                depositFeeBP: _depositFeeBP
+                depositFeeBP: _depositFeeBP,
+                withDepositLockDiscount: withDepositLockDiscount
             })
         );
 
-        emit PoolAdded(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP);
+        emit PoolAdded(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP, withDepositLockDiscount);
     }
 
     // Update the given pool's DIB allocation point and deposit fee. Can only be called by the owner.
@@ -184,7 +188,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 _pid,
         uint256 _allocPoint,
         uint16 _depositFeeBP,
-        bool _withUpdate
+        bool _withUpdate,
+        bool withDepositLockDiscount
     ) external onlyOwner {
         require(_depositFeeBP <= 1000, "set: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -197,7 +202,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
 
-        emit PoolSet(_pid, _allocPoint, _depositFeeBP);
+        emit PoolSet(_pid, _allocPoint, _depositFeeBP, withDepositLockDiscount);
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -320,7 +325,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
                     );
                     depositFee = depositFee.div(2);
                 }
-                if (_lockPeriod > 0) {
+                if (pool.withDepositLockDiscount && _lockPeriod > 0) {
                     uint256 lockDiscount = lockPeriodDiscounts[_lockPeriod];
                     require(lockDiscount > 0, "wrong lock period");
                     depositFee = (depositFee * (1000 - lockDiscount)) / 1000;
@@ -363,6 +368,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
+        require(user.unlockTime <= block.timestamp, "not yet");
         uint256 amount = user.amount;
         user.amount = 0;
         user.rewardDebt = 0;

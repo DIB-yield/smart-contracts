@@ -39,8 +39,8 @@ describe("MasterChef test", function () {
 
         await dibToken.transferOwnership(masterChef.address);
 
-        await masterChef.add(1000, usdt.address, 400, false);
-        await masterChef.add(500, weth.address, 400, false);
+        await masterChef.add(1000, usdt.address, 400, false, true);
+        await masterChef.add(500, weth.address, 400, false, false);
 
         return {
             masterChef,
@@ -119,6 +119,20 @@ describe("MasterChef test", function () {
             const aliceInfo = await masterChef.userInfo(0, alice.address);
             expect(aliceInfo.amount).equal(parseUnits("966", 18));
         });
+
+        it("should not give discount on pool withoud discount option", async () => {
+            const oneDay = 86400;
+            const month = oneDay * 30;
+
+            const { masterChef, alice, weth } = await loadFixture(prepareEnv);
+
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await weth.connect(alice).approve(masterChef.address, amount);
+            await masterChef.connect(alice).deposit(1, amount, month, []);
+
+            const aliceInfo = await masterChef.userInfo(1, alice.address);
+            expect(aliceInfo.amount).equal(parseUnits("960", 18));
+        })
 
         it("sets correct unlock time on first deposit", async () => {
             const oneDay = 86400;
