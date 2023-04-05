@@ -147,8 +147,6 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         return poolInfo.length;
     }
 
-    mapping(IERC20 => bool) public poolExistence;
-
     // Add a new token to the pool. Can only be called by the owner.
     function add(
         uint256 _allocPoint,
@@ -166,7 +164,6 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
 
         uint256 lastRewardTime = block.timestamp > startTime ? block.timestamp : startTime;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
-        poolExistence[_stakeToken] = true;
 
         poolInfo.push(
             PoolInfo({
