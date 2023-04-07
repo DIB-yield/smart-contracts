@@ -30,5 +30,6 @@ export async function deployAndVerify(contractName: string, args: any[], confirm
             console.log("Error message", error.message);
         }
     }
+    console.log(`successfully deployed ${contractName}\n\n\n`)
     return contract;
 }
