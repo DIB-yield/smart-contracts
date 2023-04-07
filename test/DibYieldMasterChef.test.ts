@@ -120,7 +120,7 @@ describe("MasterChef test", function () {
             expect(aliceInfo.amount).equal(parseUnits("966", 18));
         });
 
-        it("should not give discount on pool withoud discount option", async () => {
+        it("should not give discount on pool without discount option", async () => {
             const oneDay = 86400;
             const month = oneDay * 30;
 
