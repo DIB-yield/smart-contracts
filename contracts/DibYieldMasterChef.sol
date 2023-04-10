@@ -197,6 +197,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
+        poolInfo[_pid].withDepositLockDiscount = withDepositLockDiscount;
 
         emit PoolSet(_pid, _allocPoint, _depositFeeBP, withDepositLockDiscount);
     }
@@ -245,6 +246,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 _amount,
         uint256 _lockTime
     ) public pure returns (uint64) {
+        if(_oldAmount + _amount == 0) return 0;
         return uint64((_oldAmount * _lockTimeLeft + _lockTime * _amount) / (_oldAmount + _amount));
     }
 
@@ -326,6 +328,11 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
                     userInfo[_pid][msg.sender].unlockTime = uint64(
                         block.timestamp +
                             calculateNewUnlockTimeForUser(msg.sender, _pid, _lockPeriod, _amount)
+                    );
+                } else if(userInfo[_pid][msg.sender].unlockTime > block.timestamp) {
+                    userInfo[_pid][msg.sender].unlockTime = uint64(
+                        block.timestamp +
+                            calculateNewUnlockTimeForUser(msg.sender, _pid, 0, _amount)
                     );
                 }
                 pool.stakeToken.safeTransfer(feeAddress, depositFee);

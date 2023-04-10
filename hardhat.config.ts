@@ -65,6 +65,10 @@ module.exports = {
             url: "https://matic-mumbai.chainstacklabs.com",
             accounts: config.testnetAccounts,
         },
+        arbitrum: {
+            url: config.arbitrumNodeUrl,
+            accounts: config.mainnet
+        }
     },
     // docs: https://www.npmjs.com/package/@nomiclabs/hardhat-etherscan
     etherscan: {
@@ -78,9 +82,11 @@ module.exports = {
 
             bsc: config.apiKeyBscScan,
             bscTestnet: config.apiKeyBscScan,
-
+            
             polygon: config.apiKeyPolygonScan,
             polygonMumbai: config.apiKeyPolygonScan,
+
+            arbitrumOne: config.apiKeyArbitrum
 
             // to get all supported networks
             // npx hardhat verify --list-networks

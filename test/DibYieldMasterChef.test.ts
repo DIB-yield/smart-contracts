@@ -151,7 +151,7 @@ describe("MasterChef test", function () {
             expect(aliceInfo.unlockTime).equal(miningTime + month);
         });
 
-        it("should not allow to withdraw before unlock time", async () => {
+        it("should not allow to withdraw before unlock time and allow after", async () => {
             const oneDay = 86400;
             const month = oneDay * 30;
 
@@ -161,13 +161,35 @@ describe("MasterChef test", function () {
             await usdt.connect(alice).approve(masterChef.address, amount);
             await masterChef.connect(alice).deposit(0, amount, month, []);
 
-            await expect(masterChef.connect(alice).withdraw(0, parseUnits("900", 18))).to.be.revertedWith("not yet");
+            await expect(masterChef.connect(alice).withdraw(0, parseUnits("960", 18))).to.be.revertedWith("not yet");
 
             const aliceInfo = await masterChef.userInfo(0, alice.address);
             await time.increaseTo(aliceInfo.unlockTime);
-            await masterChef.connect(alice).withdraw(0, parseUnits("900", 18));
-            
+            await expect(masterChef.connect(alice).withdraw(0, parseUnits("960", 18))).to.not.rejected;
         }) 
+
+        it("should recalculate unlock time on subsequent deposits if deposit discount was turned off", async() => {
+            const oneDay = 86400;
+            const month = oneDay * 30;
+
+            const { masterChef, alice, usdt } = await loadFixture(prepareEnv);
+
+            const amount = ethers.utils.parseUnits("100", 18);
+            await usdt.connect(alice).approve(masterChef.address, amount);
+
+            await masterChef.connect(alice).deposit(0, amount, month, []);
+
+            await masterChef.set(0, 400, 400, true, false);
+
+            let aliceInfo = await masterChef.userInfo(0, alice.address);
+            const { unlockTime } = aliceInfo;
+            await usdt.connect(alice).approve(masterChef.address, amount);
+            await masterChef.connect(alice).deposit(0, amount, 3 * month, []);
+
+            aliceInfo = await masterChef.userInfo(0, alice.address);
+            const newUnlockTime = aliceInfo.unlockTime;
+            expect(newUnlockTime).lt(unlockTime, "unlock time didn't decrease");
+        })
 
         it("should correctly recalculate unlock time", async () => {
             const oneDay = 86400;
@@ -208,6 +230,13 @@ describe("MasterChef test", function () {
             amount = parseUnits("100", 18);
             newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
             expect(newLockTime).equal(month);
+
+            oldAmount = 0;
+            lockTimeLeft = 10;
+            lockTime = month;
+            amount = 0;
+            newLockTime = await masterChef.calculateUnlockTime(oldAmount, lockTimeLeft, amount, lockTime);
+            expect(newLockTime).equal(0);
         })
     });
 });
