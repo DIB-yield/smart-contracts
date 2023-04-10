@@ -67,7 +67,7 @@ module.exports = {
         },
         arbitrum: {
             url: config.arbitrumNodeUrl,
-            accounts: config.mainnet
+            accounts: config.mainnetAccounts
         }
     },
     // docs: https://www.npmjs.com/package/@nomiclabs/hardhat-etherscan
