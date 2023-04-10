@@ -64,7 +64,7 @@ describe("MasterChef test", function () {
         expect(aliceInfo.amount).equal(parseUnits("960", 18));
     });
 
-    describe("pre launch whitelist", () => {
+    describe("whitelist", () => {
         it("should take discounted fee on deposit from whitelist", async () => {
             const { masterChef, alice, bob, usdt } = await loadFixture(prepareEnv);
             const merkleTree = StandardMerkleTree.of([[alice.address], [bob.address]], ["address"]);
@@ -77,7 +77,7 @@ describe("MasterChef test", function () {
             expect(aliceInfo.amount).equal(parseUnits("980", 18));
         });
 
-        it("should not make discount after project launch", async () => {
+        it("should make discount after project launch", async () => {
             const { masterChef, alice, bob, usdt } = await loadFixture(prepareEnv);
             const merkleTree = StandardMerkleTree.of([[alice.address], [bob.address]], ["address"]);
             await masterChef.setWhitelistMerkleRoot(merkleTree.root);
@@ -88,7 +88,7 @@ describe("MasterChef test", function () {
             await time.increase(86400);
             await masterChef.connect(alice).deposit(0, amount, 0, proof);
             const aliceInfo = await masterChef.userInfo(0, alice.address);
-            expect(aliceInfo.amount).equal(parseUnits("960", 18));
+            expect(aliceInfo.amount).equal(parseUnits("980", 18));
         });
     });
 
