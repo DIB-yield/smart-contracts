@@ -24,7 +24,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "./DibYieldToken.sol";
-import "hardhat/console.sol";
 
 // MasterChef is the master of DIB token. He can make DIB and he is a fair guy.
 //
@@ -80,7 +79,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     address public feeAddress;
 
     // Max emission rate
-    uint256 public constant MAX_EMISSION_RATE = 4 ether;
+    uint256 public constant MAX_EMISSION_RATE = 10 ether;
     // Max dev fee
     uint256 public constant MAX_DEV_FEE = 100;
 

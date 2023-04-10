@@ -11,12 +11,10 @@ async function main() {
     const merkleTree = StandardMerkleTree.of([[deployer1Address], [deployer2Address]], ["address"]);
     fs.writeFileSync("whitelistMerkleTree.json", JSON.stringify(merkleTree.dump()));
 
-    /*
     const MasterChef = await ethers.getContractFactory("DibYieldMasterChef")
     const masterChef = await MasterChef.attach(masterChefAddress);
 
     await masterChef.setWhitelistMerkleRoot(merkleTree.root);
-    */
 }
 
 main()
