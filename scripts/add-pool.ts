@@ -1,19 +1,18 @@
 import { ethers } from "hardhat";
 
 const config = require("../config.js");
-const utils = require("./utils");
 
-const masterChefAddress = '0xaFeE634c32c481e33dD3FF5C1F4ad21C4D7eaA48';
+const masterChefAddress = config.masterChefAddress;
 
 const dib = {
-    address: '0x7d3429aBff823eb7F417E4e3849c12Eb7086Ce4c',
+    address: config.dibTokenAddress,
     allocation: 120,
     depositFee: 400,
     withDepositDiscount: true
 }
 
 const dibEth = {
-    address: '0x6f17c2fC504de7993B053a80E27f16c88C0C5120',
+    address: config.dibEthPairAddress,
     allocation: 400,
     depositFee: 400,
     withDepositDiscount: true

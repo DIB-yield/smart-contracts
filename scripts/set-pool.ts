@@ -3,7 +3,7 @@ import { ethers } from "hardhat";
 const config = require("../config.js");
 const utils = require("./utils");
 
-const masterChefAddress = '0xeb47f44F7502fbaeA560764E81D5C11De5D22b15';
+const masterChefAddress = config.masterChefAddress;
 
 const arbEth = {
     allocation: 0,
