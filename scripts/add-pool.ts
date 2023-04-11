@@ -3,10 +3,10 @@ import { ethers } from "hardhat";
 const config = require("../config.js");
 const utils = require("./utils");
 
-const masterChefAddress = '0x1373D050d48B73Dc4cf8Ba7761A21Ee57E2B75cC';
+const masterChefAddress = '0xaFeE634c32c481e33dD3FF5C1F4ad21C4D7eaA48';
 
 const dib = {
-    address: '0xF1ffE4687E6e77a9e2FF52Eb443c1334dfd1f51f',
+    address: '0x7d3429aBff823eb7F417E4e3849c12Eb7086Ce4c',
     allocation: 120,
     depositFee: 400,
     withDepositDiscount: true
