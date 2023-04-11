@@ -16,3 +16,4 @@ output.json
 deployments/
 **/.DS_Store
 scripts/deploy-mainnnet.ts
+whitelistMerkleTree.json

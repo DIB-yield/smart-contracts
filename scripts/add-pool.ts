@@ -3,18 +3,18 @@ import { ethers } from "hardhat";
 const config = require("../config.js");
 const utils = require("./utils");
 
-const masterChefAddress = '0xeb47f44F7502fbaeA560764E81D5C11De5D22b15';
+const masterChefAddress = '0x1373D050d48B73Dc4cf8Ba7761A21Ee57E2B75cC';
 
 const dib = {
-    address: '0x05953D89a4F71031518587830F1aF72A33fDcfC7',
+    address: '0xF1ffE4687E6e77a9e2FF52Eb443c1334dfd1f51f',
     allocation: 120,
     depositFee: 400,
     withDepositDiscount: true
 }
 
 const dibEth = {
-    address: '0xA399b92610faB014113170cE027BbdD8f7A91d83',
-    allocation: 120,
+    address: '0x6f17c2fC504de7993B053a80E27f16c88C0C5120',
+    allocation: 400,
     depositFee: 400,
     withDepositDiscount: true
 }
@@ -85,8 +85,6 @@ async function main() {
 
     await addPool(masterChef, wbtcWeth);
     
-    await addPool(masterChef, arbEth);
-
     await addPool(masterChef, arbEth);
 
     await addPool(masterChef, bananaEth);
