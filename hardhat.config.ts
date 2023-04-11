@@ -6,7 +6,7 @@ import "@nomiclabs/hardhat-etherscan";
 import "solidity-coverage";
 import "solidity-coverage";
 // import "hardhat-contract-sizer";
-import "hardhat-gas-reporter";
+// import "hardhat-gas-reporter";
 import "hardhat-abi-exporter";
 import "hardhat-spdx-license-identifier";
 import "hardhat-tracer";

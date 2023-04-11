@@ -25,6 +25,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "./DibYieldToken.sol";
 
+/// @title DIB Yield MasterChef
 // MasterChef is the master of DIB token. He can make DIB and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
@@ -93,6 +94,9 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
     // The block number when DIB mining starts.
     uint256 public startTime;
 
+    //mapping for partners with zero deposit fee
+    mapping(address => bool) partners;
+
     mapping(uint256 => uint256) lockPeriodDiscounts;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
@@ -119,6 +123,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         uint256 accDibPerShare
     );
     event WhitelistMerkleRootSet(bytes32 newMerkleRoot);
+    event PartnerUpdated(address indexed partner, bool included);
 
     constructor(
         DibYieldToken _dib,
@@ -142,17 +147,23 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         lockPeriodDiscounts[90 days] = 450;
     }
 
+    /// @notice helper function to get the number of the added pools
+    /// @return number of pools
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
     }
 
-    // Add a new token to the pool. Can only be called by the owner.
+    /// @notice Add a new token to the pool. Can only be called by the owner.
+    /// @param _allocPoint new allocation
+    /// @param _stakeToken ERC20 token to create pool for
+    /// @param _withUpdate update rewards before adding a new pool. Should be always set to true after the farm is started
+    /// @param _withDepositLockDiscount parameter to set if discount for lock is available for this pool
     function add(
         uint256 _allocPoint,
         IERC20 _stakeToken,
         uint16 _depositFeeBP,
         bool _withUpdate,
-        bool withDepositLockDiscount
+        bool _withDepositLockDiscount
     ) external onlyOwner {
         require(_depositFeeBP <= 1000, "add: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -172,20 +183,24 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
                 accDibPerShare: 0,
                 totalStaked: 0,
                 depositFeeBP: _depositFeeBP,
-                withDepositLockDiscount: withDepositLockDiscount
+                withDepositLockDiscount: _withDepositLockDiscount
             })
         );
 
-        emit PoolAdded(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP, withDepositLockDiscount);
+        emit PoolAdded(poolInfo.length.sub(1), _allocPoint, _stakeToken, _depositFeeBP, _withDepositLockDiscount);
     }
 
-    // Update the given pool's DIB allocation point and deposit fee. Can only be called by the owner.
+    /// @notice Update the given pool's DIB allocation point and deposit fee. Can only be called by the owner.
+    /// @param _pid pool id
+    /// @param _allocPoint new allocation
+    /// @param _depositFeeBP new deposit fee in base points. Must be less than 1000 (10%)
+    /// @param _withDepositLockDiscount parameter to set if discount for lock is available for this pool
     function set(
         uint256 _pid,
         uint256 _allocPoint,
         uint16 _depositFeeBP,
         bool _withUpdate,
-        bool withDepositLockDiscount
+        bool _withDepositLockDiscount
     ) external onlyOwner {
         require(_depositFeeBP <= 1000, "set: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -197,17 +212,22 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
-        poolInfo[_pid].withDepositLockDiscount = withDepositLockDiscount;
+        poolInfo[_pid].withDepositLockDiscount = _withDepositLockDiscount;
 
-        emit PoolSet(_pid, _allocPoint, _depositFeeBP, withDepositLockDiscount);
+        emit PoolSet(_pid, _allocPoint, _depositFeeBP, _withDepositLockDiscount);
     }
 
-    // Return reward multiplier over the given _from to _to block.
+    /// @notice Return reward multiplier over the given _from to _to block.
+    /// @param _from timestamp to calculate from
+    /// @param _to timestamp to calculate to
     function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
         return _to.sub(_from);
     }
 
-    // View function to see pending DIBs on frontend.
+    /// @notice View function to see pending DIBs on frontend.
+    /// @param _pid pool id
+    /// @param _user user to get pending tokens for
+    /// @return amount of pending tokens
     function pendingTokens(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
@@ -225,6 +245,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         return user.amount.mul(accDibPerShare).div(1e18).sub(user.rewardDebt);
     }
 
+    /// @notice Calculates new lock period
+    /// @param _user user to calculate for
+    /// @param _pid pool id
+    /// @param _lockTime new lock time period
+    /// @param _amount new deposit amount
+    /// @return new period for lock
     function calculateNewUnlockTimeForUser(
         address _user,
         uint256 _pid,
@@ -240,6 +266,12 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         return calculateUnlockTime(userBalance, timeToUnlock, _amount, _lockTime);
     }
 
+    /// @notice Calculates new lock period for how much time funds will be locked
+    /// @param _oldAmount user previosly deposited amount
+    /// @param _lockTimeLeft how much time left until current unlock time
+    /// @param _amount new deposit amount
+    /// @param _lockTime new lock time period
+    /// @return new period for lock
     function calculateUnlockTime(
         uint256 _oldAmount,
         uint256 _lockTimeLeft,
@@ -250,7 +282,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         return uint64((_oldAmount * _lockTimeLeft + _lockTime * _amount) / (_oldAmount + _amount));
     }
 
-    // Update reward variables for all pools. Be careful of gas spending!
+    /// @notice Update reward variables for all pools. Be careful of gas spending!
     function massUpdatePools() public {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
@@ -258,7 +290,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         }
     }
 
-    // Update reward variables of the given pool to be up-to-date.
+    /// @notice Update reward variables of the given pool to be up-to-date.
+    /// @param _pid pool id
     function updatePool(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         if (block.timestamp <= pool.lastRewardTime) {
@@ -282,7 +315,11 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit PoolUpdated(_pid, pool.lastRewardTime, stakeSupply, pool.accDibPerShare);
     }
 
-    // Deposit tokens to MasterChef for DIB allocation.
+    /// @notice Deposit tokens to MasterChef for DIB allocation. If there are locked funds for this pool, a new unlock time will be calculated as an average amount weighted value.
+    /// @param _pid pool id to deposit to
+    /// @param _amount amount of tokens to deposit. This amount should be approved beforehand
+    /// @param _lockPeriod lock period in seconds to lock
+    /// @param _whitelistProof proof for 50% discount whitelist. Transaction will fail if a wrong proof is passed
     function deposit(
         uint256 _pid,
         uint256 _amount,
@@ -306,7 +343,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
             pool.stakeToken.safeTransferFrom(address(msg.sender), address(this), _amount);
             finalDepositAmount = pool.stakeToken.balanceOf(address(this)) - preStakeBalance;
 
-            if (pool.depositFeeBP > 0) {
+            if (pool.depositFeeBP > 0 && !partners[msg.sender]) {
                 uint256 depositFee = finalDepositAmount.mul(pool.depositFeeBP).div(10000);
                 if (
                     _whitelistProof.length != 0 &&
@@ -345,7 +382,9 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit Deposit(msg.sender, _pid, finalDepositAmount);
     }
 
-    // Withdraw tokens from MasterChef.
+    /// @notice Withdraw tokens from MasterChef. If the funds were previosly locked the block time should be bigger than unlock time
+    /// @param _pid pid of the pool to withdraw from 
+    /// @param _amount amount to withdraw from pool
     function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -365,7 +404,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    // Withdraw without caring about rewards. EMERGENCY ONLY.
+    /// @notice Withdraw without caring about rewards. EMERGENCY ONLY. Does not allow to withdraw if funds are stil locked
+    /// @param _pid pid of the pool to withdraw from
     function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -378,7 +418,7 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit EmergencyWithdraw(msg.sender, _pid, amount);
     }
 
-    // Safe DIB transfer function, just in case if rounding error causes pool to not have enough DIBs.
+    /// @dev Safe DIB transfer function, just in case if rounding error causes pool to not have enough DIBs.
     function safeDibTransfer(address _to, uint256 _amount) internal {
         uint256 dibBal = dib.balanceOf(address(this));
         bool transferSuccess = false;
@@ -390,8 +430,8 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         require(transferSuccess, "safeDibTransfer: transfer failed");
     }
 
+    /// @notice Sets farming start tieme. Can only be changed if farming has not started already
     /// @param _startTime The block to start mining
-    /// @notice can only be changed if farming has not started already
     function setStartTime(uint256 _startTime) external onlyOwner {
         require(startTime > block.timestamp, "Farming started");
         uint256 length = poolInfo.length;
@@ -402,19 +442,24 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         startTime = _startTime;
     }
 
-    // Update dev address by the previous dev.
+    /// @notice Update dev address by the previous dev.
+    /// @param _devaddr address to set as developer's address
     function setDevAddress(address _devaddr) external onlyOwner {
         require(_devaddr != address(0), "zero address");
         devaddr = _devaddr;
         emit SetDevAddress(msg.sender, _devaddr);
     }
 
+    /// @notice sets address to receive deposit fees
+    /// @param _feeAddress new fee address
     function setFeeAddress(address _feeAddress) external onlyOwner {
         require(_feeAddress != address(0), "zero address");
         feeAddress = _feeAddress;
         emit SetFeeAddress(msg.sender, _feeAddress);
     }
 
+    /// @notice udpate DIB emission rate
+    /// @param _dibPerSecond new emission rate. Must be less than 10 DIB/second
     function updateEmissionRate(uint256 _dibPerSecond) external onlyOwner {
         massUpdatePools();
         _updateEmissionRate(_dibPerSecond);
@@ -426,21 +471,36 @@ contract DibYieldMasterChef is Ownable, ReentrancyGuard {
         emit UpdateEmissionRate(msg.sender, _dibPerSecond);
     }
 
+    /// @notice sets devs fee
+    /// @param _newDevFee new DIB fee in base points. Must be less than MAX_DEV_FEE
     function updateDevFee(uint256 _newDevFee) external onlyOwner {
         require(_newDevFee <= MAX_DEV_FEE, "Updated fee is more than maximum rate");
         devFee = _newDevFee;
         emit UpdateDevFee(msg.sender, _newDevFee);
     }
 
+    /// @notice sets root of whitelist merkle root that gives 50% deposit fee disount
+    /// @param _root the Merkle tree root
     function setWhitelistMerkleRoot(bytes32 _root) external onlyOwner {
         whitelistMerkleRoot = _root;
         emit WhitelistMerkleRootSet(_root);
     }
 
+    /// @notice sets a discount for deposit fee for a specified period
+    /// @param _periodInSeconds period for lock. Passed in seconds
+    /// @param _discount discount for the deposit fee. 1000 means 100% disount
     function setLockDiscount(uint256 _periodInSeconds, uint256 _discount) external onlyOwner {
         require(_discount <= 1000, "invalid discount value");
         require(_periodInSeconds > 0, "invalid discount value");
         lockPeriodDiscounts[_periodInSeconds] = _discount;
         emit LockPeriodDiscountSet(_periodInSeconds, _discount);
+    }
+
+    /// @notice sets an address as a partner for zero deposit fee
+    /// @param _partner address of the parter
+    /// @param _include true if to set address as a partner
+    function setPartner(address _partner, bool _include) external onlyOwner {
+        partners[_partner] = _include;
+        emit PartnerUpdated(_partner, _include);
     }
 }

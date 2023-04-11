@@ -11,7 +11,7 @@ const { parseUnits } = ethers.utils;
 
 describe("MasterChef test", function () {
     async function prepareEnv(): Promise<EnvResult> {
-        const [owner, alice, bob, dev] = await ethers.getSigners();
+        const [owner, alice, bob, dev, partner] = await ethers.getSigners();
 
         const DibToken = await ethers.getContractFactory("DibYieldToken");
         const dibToken = await DibToken.deploy();
@@ -20,9 +20,13 @@ describe("MasterChef test", function () {
         const usdt = await MockToken.deploy("USDT", "USDT");
         const weth = await MockToken.deploy("WETH", "WETH");
         usdt.mint(alice.address, ethers.utils.parseUnits("1000", 18));
-        usdt.mint(bob.address, ethers.utils.parseUnits("1000", 18));
         weth.mint(alice.address, ethers.utils.parseUnits("1000", 18));
+
+        usdt.mint(bob.address, ethers.utils.parseUnits("1000", 18));
         weth.mint(bob.address, ethers.utils.parseUnits("1000", 18));
+
+        usdt.mint(partner.address, ethers.utils.parseUnits("1000", 18));
+        weth.mint(partner.address, ethers.utils.parseUnits("1000", 18));
 
         const MasterChef = await ethers.getContractFactory("DibYieldMasterChef");
 
@@ -42,6 +46,8 @@ describe("MasterChef test", function () {
         await masterChef.add(1000, usdt.address, 400, false, true);
         await masterChef.add(500, weth.address, 400, false, false);
 
+        await masterChef.setPartner(partner.address, true);
+
         return {
             masterChef,
             dibToken,
@@ -51,6 +57,7 @@ describe("MasterChef test", function () {
             dev,
             weth,
             usdt,
+            partner
         };
     }
 
@@ -62,6 +69,18 @@ describe("MasterChef test", function () {
 
         const aliceInfo = await masterChef.userInfo(0, alice.address);
         expect(aliceInfo.amount).equal(parseUnits("960", 18));
+    });
+
+    it("should correctly work with zero deposit fee", async () => {
+        const { masterChef, alice, usdt } = await loadFixture(prepareEnv);
+        await masterChef.set(0, 1000, 0, true, true);
+
+        const amount = ethers.utils.parseUnits("1000", 18);
+        await usdt.connect(alice).approve(masterChef.address, amount);
+        await masterChef.connect(alice).deposit(0, amount, 0, []);
+
+        const aliceInfo = await masterChef.userInfo(0, alice.address);
+        expect(aliceInfo.amount).equal(parseUnits("1000", 18));
     });
 
     describe("whitelist", () => {
@@ -239,4 +258,34 @@ describe("MasterChef test", function () {
             expect(newLockTime).equal(0);
         })
     });
+
+    describe("partners", () => {
+
+        it("should not take deposit fee for a partner", async () => {
+            const { masterChef, partner, usdt } = await loadFixture(prepareEnv);
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(partner).approve(masterChef.address, amount);
+            await masterChef.connect(partner).deposit(0, amount, 0, []);
+
+            const aliceInfo = await masterChef.userInfo(0, partner.address);
+            expect(aliceInfo.amount).equal(parseUnits("1000", 18));
+        })
+
+        it("should take deposit fee after cancelling partnership", async () => {
+            const { masterChef, partner, usdt } = await loadFixture(prepareEnv);
+            const amount = ethers.utils.parseUnits("1000", 18);
+            await usdt.connect(partner).approve(masterChef.address, amount);
+            await masterChef.setPartner(partner.address, false);
+            await masterChef.connect(partner).deposit(0, amount, 0, []);
+
+            const aliceInfo = await masterChef.userInfo(0, partner.address);
+            expect(aliceInfo.amount).equal(parseUnits("960", 18));
+        });
+
+        it("should check authorization on setting partner", async () => {
+            const { masterChef, alice, partner } = await loadFixture(prepareEnv);
+            await expect(masterChef.connect(alice).setPartner(partner.address, false)).to.be.revertedWith("Ownable: caller is not the owner")
+        })
+
+    })
 });

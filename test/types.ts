@@ -12,4 +12,6 @@ export interface EnvResult {
     alice: SignerWithAddress;
     bob: SignerWithAddress;
     dev: SignerWithAddress;
+
+    partner: SignerWithAddress;
 }
