@@ -19,3 +19,4 @@ scripts/deploy-mainnnet.ts
 whitelistMerkleTree.json
 assets/whitelistAddresses.json
 assets/whitelistMerkleTree.json
+docs

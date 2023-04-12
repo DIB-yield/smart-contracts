@@ -5,16 +5,23 @@ const utils = require("./utils");
 
 const masterChefAddress = config.masterChefAddress;
 
-const arbEth = {
-    allocation: 0,
-    depositFee: 0,
-    withDepositDiscount: false
+async function main() {
+    const [deployer] = await ethers.getSigners();
+    console.log("Deployer address:", deployer.address);
+
+    const MasterChef = await ethers.getContractFactory("DibYieldMasterChef");
+    const masterChef = await MasterChef.attach(masterChefAddress);
+
+    const pool = utils.getPoolConfigByName("dib");
+    await setPool(masterChef, pool, true);
+
+    console.log('done');
 }
 
-async function setPool(masterChef: any, id: number, poolConfig: any, withUpdate = false) {
-    console.log(`setting pool`);
+async function setPool(masterChef: Contract, poolConfig: any, withUpdate = false) {
+    console.log(`setting pool ${poolConfig.name}`);
     await masterChef.set(
-        id, 
+        poolConfig.pid, 
         poolConfig.allocation, 
         poolConfig.depositFee, 
         withUpdate, 
@@ -23,17 +30,6 @@ async function setPool(masterChef: any, id: number, poolConfig: any, withUpdate 
     console.log(`pool set\n`)
 }
 
-async function main() {
-    const [deployer] = await ethers.getSigners();
-    console.log("Deployer address:", deployer.address);
-
-    const MasterChef = await ethers.getContractFactory("DibYieldMasterChef")
-    const masterChef = await MasterChef.attach(masterChefAddress);
-
-    await setPool(masterChef, 6, arbEth)
-
-    console.log('done')
-}
 
 main()
     .then(() => process.exit(0))

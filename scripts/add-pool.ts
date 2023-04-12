@@ -4,57 +4,8 @@ const config = require("../config.js");
 
 const masterChefAddress = config.masterChefAddress;
 
-const dib = {
-    address: config.dibTokenAddress,
-    allocation: 120,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const dibEth = {
-    address: config.dibEthPairAddress,
-    allocation: 400,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const wethUsdt = {
-    address: '0xBEb125e43B46F757ece0428cdE20cce336aF962E',
-    allocation: 10,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const wethUsdc = {
-    address: '0xC53e453E4A6953887bf447162D1dC9E1e7f16f60',
-    allocation: 10,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const wbtcWeth = {
-    address: '0x4CefE08Ea644291626F286DD9223Eaef932560c4',
-    allocation: 10,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const arbEth = {
-    address: '0x1713f5d04a741a2dD2d026Ce7cAb5614a499e1c0',
-    allocation: 10,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
-const bananaEth = {
-    address: '0x87870a3F29eC9683d346FFD4f7330Dd1b46264c2',
-    allocation: 10,
-    depositFee: 400,
-    withDepositDiscount: true
-}
-
 async function addPool(masterChef, poolConfig, withUpdate = false) {
-    console.log(`adding pool for ${poolConfig.address}`);
+    console.log(`adding pool for ${poolConfig.name}`);
     await masterChef.add(
         poolConfig.allocation, 
         poolConfig.address, 
@@ -72,21 +23,10 @@ async function main() {
     const MasterChef = await ethers.getContractFactory("DibYieldMasterChef")
     const masterChef = await MasterChef.attach(masterChefAddress);
 
-    console.log('adding dib')
-    await addPool(masterChef, dib);
-
-    console.log('adding pair')
-    await addPool(masterChef, dibEth)
-
-    await addPool(masterChef, wethUsdt);
-
-    await addPool(masterChef, wethUsdc);
-
-    await addPool(masterChef, wbtcWeth);
-    
-    await addPool(masterChef, arbEth);
-
-    await addPool(masterChef, bananaEth);
+    const pools = config.masterChefParams.pools;
+    for(let pool of pools) {
+        await addPool(masterChef, pool);
+    }
 
     console.log('done')
 }

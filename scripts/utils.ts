@@ -1,4 +1,5 @@
 import { ethers, network, run } from "hardhat";
+const config = require("../config.js");
 
 export async function deployAndVerify(contractName: string, args: any[], confirmations = 2): Contract {
     const Contract = await ethers.getContractFactory(contractName);
@@ -32,4 +33,14 @@ export async function deployAndVerify(contractName: string, args: any[], confirm
     }
     console.log(`successfully deployed ${contractName}\n\n\n`)
     return contract;
+}
+
+export function getPoolConfigByName(name: string): any {
+    const { pools } = config.masterChefParams;
+    for(let pool of pools) {
+        if(pool.name === name) {
+            return pool;
+        }
+    }
+    throw Error(`Pool with name ${name} not found`)
 }
